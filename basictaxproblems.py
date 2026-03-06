@@ -3949,27 +3949,27 @@ def depreciation_question(type_problem="random"):
     return [problem, cleananswers, judgements_json, correct]
 
 
-def depreciation_real_estate(type_problem="random"):
+def depreciation_with_bonus():
 
     person1 = fm.create_person()
 
     asset = random.choice(dp.full_asset_list)
 
-    if type_problem == "sold":
-        sold = True
-    elif type_problem == "not sold":
-        sold = False
-    else:
-        sold = random.choice([True, False])
+    
+    years_passed = random.randint(1,asset.recovery_period)
+    question_year_expense = fm.current_year
+    question_year_no_expense = fm.current_year + years_passed
+
+    question_year = random.choices([question_year_expense,question_year_no_expense],weights=[30,70],k=1)[0]
+
+    if question_year_expense:
+        years_passed = 0
+    
+    if question_year_no_expense:
+        sold = random.choices([True,False],weights=[30,70],k=1)[0]
+        
 
     initial_basis = 1000 * random.randint(10, 40)
-
-    while True:
-        years_passed = round(random.random() * asset.recovery_period)
-        if years_passed > 0 and years_passed < asset.recovery_period:
-            break
-
-    question_year = fm.current_year + years_passed
 
     sale_date = fm.month_day(fm.pick_random_date()) + ", " + str(question_year)
 
@@ -3996,12 +3996,12 @@ def depreciation_real_estate(type_problem="random"):
     else:
         sale_lang = ""
 
-    question_lang = f" How much depreciation may {person1.name} take in {str(question_year)} with respect to the {asset.name}? (Assume that Section 168(k) does not apply, and also assume that many other depreciable assets were put into use throughout the year.)"
+    question_lang = f" No elections were made with respect to the {asset.name}. How much depreciation may {person1.name} take in {str(question_year)} with respect to the {asset.name}?"
 
     problem = problem_lang + period_lang + acq_lang + sale_lang + question_lang
 
     # possible answers
-
+    expense = int(initial_basis)
     year_depreciation = int(
         round(fm.depreciate_asset(asset, years_passed, initial_basis, sold)[1])
     )
@@ -4009,65 +4009,121 @@ def depreciation_real_estate(type_problem="random"):
     straight_line_no_disposal = int(round(initial_basis / asset.recovery_period))
     class_life_straight_line = int(round(initial_basis / asset.class_life))
 
-    possibleanswers_real = [
+    possibleanswers = [
+        0,
+        expense,
         year_depreciation,
         no_disposal,
         straight_line_no_disposal,
         class_life_straight_line,
     ]
-    random_answer = random.randint(min(possibleanswers_real), max(possibleanswers_real))
-
-    possibleanswers = [
-        year_depreciation,
-        straight_line_no_disposal,
-        class_life_straight_line,
-        random_answer,
-    ]
-
-    judgements = {
-        straight_line_no_disposal: '<p>What is the method of depreciation that applies to this asset? Consider <a href="https://www.law.cornell.edu/uscode/text/26/168" target="_new" rel="noreferrer">Section 168(b)</a>.</p>',
-        random_answer: "This number was randomly generated.",
-        class_life_straight_line: '<p>Is the class life the same as the recovery period? Also, what is the method of depreciation that applies to this asset? Consider <a href="https://www.law.cornell.edu/uscode/text/26/168" target="_new" rel="noreferrer">Section 168(b)</a>.</p>',
-    }
-
-    correct = year_depreciation
-
-    if sold == True:
-        possibleanswers.append(no_disposal)
-        possibleanswers.append(straight_line_no_disposal)
-
-        judgements[year_depreciation] = (
-            f'<p>Correct! To obtain this answer, apply the correct schedule from <a href="/assets/RevProc87-57.pdf" target="_new">Rev. Proc. 87-57</a> to the initial basis. Specifically, this property has a recovery period of {asset.recovery_period} years, starting and ending with a half year of depreciation, and this is year {years_passed+1} of that time. Moreover, the {asset.name} was sold, and there is deemed to be half a year of depreciation available in the year sold.</p>'
-        )
-        judgements[no_disposal] = (
-            f'<p>This would be correct if the {asset.name} had not been sold. But what about the convention, as described in <a href="https://www.law.cornell.edu/uscode/text/26/168" target="_new" rel="noreferrer">Section 168(d)</a>?</p>'
-        )
-        judgements[straight_line_no_disposal] = (
-            '<p>What is the method of depreciation that applies to this asset? Consider <a href="https://www.law.cornell.edu/uscode/text/26/168" target="_new" rel="noreferrer">Section 168(b)</a>. Also consider the relevant convention, as in Section 168(d).</p>'
-        )
+    
+    if question_year == question_year_expense:
+        correct = expense
+        judgements = {
+        correct: '<p>Correct. The recovery period of this asset is less than 20 years, so <a href="https://www.law.cornell.edu/uscode/text/26/168" target="_new" rel="noreferrer">Section 168(k)</a> permits a depreciation deduction of 100 percent of the adjusted basis.</p>'}        
 
     else:
+        correct = 0
+        judgements = {
+        correct: '<p>Correct. The recovery period of this asset is less than 20 years, so <a href="https://www.law.cornell.edu/uscode/text/26/168" target="_new" rel="noreferrer">Section 168(k)</a> permits a depreciation deduction of 100 percent of the adjusted basis in the year in which the property was placed in service. Therefore, there is no basis left to depreciate.</p>'}
 
-        judgements[year_depreciation] = (
-            f'<p>Correct! To obtain this answer, apply the correct schedule from <a href="/assets/RevProc87-57.pdf" target="_new">Rev. Proc. 87-57</a> to the initial basis. Specifically, this property has a recovery period of {asset.recovery_period} years, starting and ending with a half year of depreciation, and this is year {years_passed+1} of that time.</p>'
-        )
-        judgements[straight_line_no_disposal] = (
-            '<p>What is the method of depreciation that applies to this asset? Consider <a href="https://www.law.cornell.edu/uscode/text/26/168" target="_new" rel="noreferrer">Section 168(b)</a>.</p>'
-        )
+    judgements.update({k: '<p>Were any elections made with respect to this asset? Consider <a href="https://www.law.cornell.edu/uscode/text/26/168" target="_new" rel="noreferrer">Section 168(k)</a>.</p>' for k in possibleanswers if k != correct})
 
-    possibleanswers = list(set(possibleanswers))
-    while len(possibleanswers) < 5:
-        (possibleanswers, judgements) = fm.random_answer_ones(
-            possibleanswers, judgements
-        )
+    [possibleanswers, judgements] = fm.random_answer_pot(possibleanswers, judgements, 0)
 
     formattedjudgements = fm.format_dict(judgements)
     judgements_json = json.dumps(formattedjudgements)
     cleananswers = fm.create_clean_answers(possibleanswers)
     return [problem, cleananswers, judgements_json, correct]
 
+def depreciation_real_estate():
+ 
+    class RealEstate:
+        def __init__(
+        self,
+        assettype,
+        recovery_period,
+                name,
+        description,
+    ):
+            self.assettype = assettype
+            self.recovery_period = recovery_period
+            self.name = name
+            self.description = description
 
+    
+    person1 = fm.create_person()
 
+    rental_property = random.choice(["a house","an apartment building","a mobile home"])
+    nonresidential_property = random.choice(["a store","a warehouse","an office building"])
+    
+    rental = RealEstate("residential rental property", 27.5,rental_property, f"More than 80 percent of the gross rental income from the {rental_property.split(' ', 1)[1]} is rental income from dwelling units. ")
+    
+    nonresidential = RealEstate("nonresidential real property", 39, nonresidential_property,"")
+
+    asset, other_asset = random.sample([rental, nonresidential], 2)
+    
+    initial_basis = 10000 * random.randint(5, 400)
+
+    question_year_possible = str(fm.current_year + random.randint(1,int(asset.recovery_period)))
+
+    question_year_impossible = str(fm.current_year + int(asset.recovery_period) + random.randint(3,20))
+
+    question_year = random.choices([question_year_possible,question_year_impossible],weights=[95,5],k=1)[0]
+
+    if person1.gender == "nonbinary":
+        usepronoun = "use"
+    else:
+        usepronoun = "uses"
+
+    problem = f"In {fm.current_year}, {person1.name} acquires for {fm.ac(initial_basis)} and puts into service {asset.name} that {person1.nom} {usepronoun} in {person1.poss} business.  {asset.description}How much depreciation may {person1.name} take in {question_year} with respect to the {asset.name.split(' ', 1)[1]}?"
+
+    # possible answers
+
+    possible_periods = [asset.recovery_period,other_asset.recovery_period,31.5]
+
+    year_depreciation,wrong_period,old_period = [int(round(initial_basis)/x) for x in possible_periods]
+            
+    double_declining = year_depreciation*2
+    
+    possibleanswers = [0,
+        year_depreciation,
+        wrong_period,
+        old_period,
+        double_declining
+    ]
+    
+    if question_year == question_year_possible:
+        correct = year_depreciation
+    
+        judgements = {
+        correct: f'Correct! Because this is {asset.assettype}. the recovery period is {asset.recovery_period} years, and the recovery method is the straight line method. Because {question_year} is not the year of acquisition, the year in which the asset is sold, or the final year of depreciation, and it is still within the recovery period, the depreciation in {question_year} equals the orginal basis, {fm.ac(initial_basis)}, divided by the recovery period.' ,
+        double_declining: '<p>What is the method of depreciation that applies to this asset? Consider <a href="https://www.law.cornell.edu/uscode/text/26/168" target="_new" rel="noreferrer">Section 168(b)</a>.</p>',
+        0:'<p>What type of real property is this? What is the recovery period for that type of real property? Consider <a href="https://www.law.cornell.edu/uscode/text/26/168" target="_new" rel="noreferrer">Section 168(c)</a>.</p>',
+        wrong_period: '<p>What type of real property is this? What is the recovery period for that type of real property? Consider <a href="https://www.law.cornell.edu/uscode/text/26/168" target="_new" rel="noreferrer">Section 168(c)</a>.</p>',
+        old_period: '<p>What type of asset is this? What is the modern recovery period for this type of asset? Consider <a href="https://www.law.cornell.edu/uscode/text/26/168" target="_new" rel="noreferrer">Section 168(c)</a>.</p>',
+    }
+    else:
+        correct = 0
+    
+        judgements = {
+            correct: f"Correct! Because this is {asset.assettype}. the recovery period is {asset.recovery_period} years. Therefore, by {question_year}, the {asset.name.split(' ', 1)[1]} is fully depreciated, and there is no depreciation left to take.",
+        double_declining: '<p>What is the method of depreciation that applies to this asset? Consider <a href="https://www.law.cornell.edu/uscode/text/26/168" target="_new" rel="noreferrer">Section 168(b)</a>.</p>',
+        wrong_period: '<p>What type of real property is this? What is the recovery period for that type of real property? Consider <a href="https://www.law.cornell.edu/uscode/text/26/168" target="_new" rel="noreferrer">Section 168(c)</a>.</p>',
+        year_depreciation: '<p>What type of real property is this? What is the recovery period for that type of real property? Consider <a href="https://www.law.cornell.edu/uscode/text/26/168" target="_new" rel="noreferrer">Section 168(c)</a>.</p>',
+        old_period: '<p>What type of asset is this? What is the modern recovery period for this type of asset? Consider <a href="https://www.law.cornell.edu/uscode/text/26/168" target="_new" rel="noreferrer">Section 168(c)</a>.</p>',
+    }
+
+    [possibleanswers, judgements] = fm.random_answer_pot(possibleanswers, judgements, 0)
+    formattedjudgements = fm.format_dict(judgements)
+    judgements_json = json.dumps(formattedjudgements)
+    cleananswers = fm.create_clean_answers(possibleanswers)
+    return [problem, cleananswers, judgements_json, correct]    
+
+def depreciation_all():
+
+    return random.choice([depreciation_with_bonus, depreciation_real_estate])()
 
 def cap_gain_netting():
 
@@ -4475,6 +4531,231 @@ def section_1231_netting():
     cleananswers = fm.create_clean_answers(possibleanswers)
     return [problem, cleananswers, judgements_json, correct]
 
+def recapture_no_bonus():
+    person1 = fm.create_person()
+
+    asset = random.choice(dp.full_asset_list)
+
+    if person1.gender == "nonbinary":
+        usepronoun = "use"
+    else:
+        usepronoun = "uses"
+
+    initial_basis = 1000 * random.randint(10, 40)
+
+    while True:
+        years_passed = round(random.random() * asset.recovery_period)
+        if years_passed > 1 and years_passed < asset.recovery_period:
+            break
+
+    total_depreciation = int(
+        fm.depreciate_asset(asset, years_passed, initial_basis, sold=True)[0]
+    )
+    basis_with_depreciation = initial_basis - total_depreciation
+
+    possiblelevels = [
+        "below basis with depreciation",
+        "above original basis",
+        "between original basis and basis with depreciation",
+    ]
+
+    level_of_sale = random.choice(possiblelevels)
+
+    if level_of_sale == "below basis with depreciation":
+        while True:
+            sale_price = fm.generate_random_item_ones(basis_with_depreciation, 60, 90)
+            if sale_price < basis_with_depreciation:
+                break
+
+    elif level_of_sale == "above original basis":
+        while True:
+            sale_price = fm.generate_random_item(initial_basis, 105, 120)
+            if sale_price > initial_basis:
+                break
+
+    else:
+        while True:
+            sale_price = fm.nearestthousand(
+                random.randint(basis_with_depreciation, initial_basis)
+            )
+            if (
+                sale_price not in [basis_with_depreciation, initial_basis]
+                and basis_with_depreciation < sale_price < initial_basis
+            ):
+                break
+
+    gainloss = sale_price - basis_with_depreciation
+    recomputed_basis = basis_with_depreciation + total_depreciation
+
+    if gainloss > 0:
+        recapture = min(recomputed_basis, sale_price) - basis_with_depreciation
+    else:
+        recapture = 0
+
+    question_year = fm.current_year + years_passed
+
+    sale_date = fm.month_day(fm.pick_random_date()) + ", " + str(question_year)
+
+    problem_lang = f"{person1.name} has a {asset.name} that {person1.nom} {usepronoun} in {person1.poss} business."
+
+    elect_out_language = f" Assume that {person1.name} elects out of Section 168(k)."
+
+    if asset.listed == False:
+        period_lang = (
+            f" The class life of the {asset.name} is {asset.class_life} years."
+        )
+    else:
+        period_lang = f" Refer to the statute for the relevant recovery period for the {asset.name}."
+
+    acq_lang = f" {person1.name} acquired the {asset.name} on {fm.date_for_problem()}, for {fm.ac(initial_basis)}, and put the {asset.name} into use that same day. On {sale_date}, {person1.name} sells the {asset.name} for {fm.ac(sale_price)}. {person1.name} may or may not have disposed of other assets used in business in {question_year}."
+
+    question_lang_character = f" What is the character of the gain or loss that {person1.name} recognizes due to the sale of the {asset.name}?"
+
+    question_lang_ordinary_income = f" What is the minimum amount of ordinary gain or loss that {person1.name} recognizes due to the sale of the {asset.name}?"
+
+    possible_questions = [question_lang_character, question_lang_ordinary_income]
+
+    question_lang = random.choice(possible_questions)
+
+    problem = problem_lang + period_lang + acq_lang + elect_out_language + question_lang
+
+    # question is overall character of the gain or loss
+    if question_lang == possible_questions[0]:
+
+        possibleanswers = [
+            "Gain, some of which is ordinary, and some of which is 1231 gain, which will be characterized based on other 1231 transactions.",
+            "Gain, all of which is ordinary.",
+            "Gain, all of which is 1231 gain, which will be characterized based on other 1231 transactions.",
+            "Gain, some of which is ordinary, and some of which is capital.",
+            "Gain, all of which is capital.",
+            "Loss, some of which is ordinary, and some of which is 1231 loss, which will be characterized based on other 1231 transactions.",
+            "Loss, all of which is ordinary.",
+            "Loss, all of which is 1231 loss, which will be characterized based on other 1231 transactions.",
+            "Loss, some of which is ordinary, and some of which is capital.",
+            "Loss, all of which is capital.",
+        ]
+
+        if level_of_sale == "below basis with depreciation":
+
+            correct = "Loss, all of which is 1231 loss, which will be characterized based on other 1231 transactions."
+
+            judgements_for_gain = {
+                "Gain, some of which is ordinary, and some of which is 1231 gain, which will be characterized based on other 1231 transactions.": "This sale generates loss. Consider depreciation.",
+                "Gain, all of which is ordinary.": "This sale generates loss. Consider depreciation.",
+                "Gain, all of which is 1231 gain, which will be characterized based on other 1231 transactions.": "This sale generates loss. Consider depreciation.",
+                "Gain, some of which is ordinary, and some of which is capital.": "This sale generates loss. Consider depreciation.",
+                "Gain, all of which is capital.": "This sale generates loss. Consider depreciation.",
+            }
+
+            judgements_for_loss = {
+                "Loss, some of which is ordinary, and some of which is 1231 loss, which will be characterized based on other 1231 transactions.": "You are correct that loss is generated. But why is some of the loss ordinary?",
+                "Loss, all of which is ordinary.": "You are correct that loss is generated. But why is the loss ordinary?",
+                "Loss, all of which is 1231 loss, which will be characterized based on other 1231 transactions.": f"Correct. Due to the total depreciation of {fm.ac(total_depreciation)}, the basis at sale was {fm.ac(basis_with_depreciation)}. Because the sale price was below the basis, the sale resulted in loss. Because the {asset.name} was used for business, was held for more than one year, and is depreciable, the {asset.name} is a quasi-capital asset, so any loss will be 1231 loss. We cannot know its character without knowing about {person1.poss} other 1231 gains and losses for the year.",
+                "Loss, some of which is ordinary, and some of which is capital.": f'<p>This is not a capital asset. Consider <a href="https://www.law.cornell.edu/uscode/text/26/1221" target="_new" rel="noreferrer">Section 1221(a)(2)</a>. How can you determine the character of the loss?</p>',
+                "Loss, all of which is capital.": f'<p>This is not a capital asset. Consider <a href="https://www.law.cornell.edu/uscode/text/26/1221" target="_new" rel="noreferrer">Section 1221(a)(2)</a>. How can you determine the character of the loss?</p>',
+            }
+
+        elif level_of_sale == "above original basis":
+
+            correct = "Gain, some of which is ordinary, and some of which is 1231 gain, which will be characterized based on other 1231 transactions."
+
+            judgements_for_gain = {
+                "Gain, some of which is ordinary, and some of which is 1231 gain, which will be characterized based on other 1231 transactions.": "Correct! Because the sale price is greater than the original basis, all of the depreciation will be recaptured. The gain due to the excess of the sale price over the original basis will be 1231 gain.",
+                "Gain, all of which is ordinary.": "Some of the gain, that due to the recapture of the depreciation, will definitely be ordinary. But how can you determine the character of the gain due to the excess of the sale price over the original basis?",
+                "Gain, all of which is 1231 gain, which will be characterized based on other 1231 transactions.": "Consider depreciation and recapture.",
+                "Gain, some of which is ordinary, and some of which is capital.": "Some of the gain, that due to the recapture of the depreciation, will definitely be ordinary. But how can you determine the character of the gain due to the excess of the sale price over the original basis.",
+                "Gain, all of which is capital.": "What about recapture? Also, how can you determine the character of the gain not due to recapture?",
+            }
+
+            judgements_for_loss = {
+                "Loss, some of which is ordinary, and some of which is 1231 loss, which will be characterized based on other 1231 transactions.": "This sale generates gain, not loss. Double-check your depreciation calculations",
+                "Loss, all of which is ordinary.": "This sale generates gain, not loss. Double-check your depreciation calculations.",
+                "Loss, all of which is 1231 loss, which will be characterized based on other 1231 transactions.": "This sale generates gain, not loss. Double-check your depreciation calculations.",
+                "Loss, some of which is ordinary, and some of which is capital.": "This sale generates gain, not loss. Double-check your depreciation calculations.",
+                "Loss, all of which is capital.": "This sale generates gain, not loss. Double-check your depreciation calculations.",
+            }
+
+        elif level_of_sale == "between original basis and basis with depreciation":
+
+            correct = "Gain, all of which is ordinary."
+
+            judgements_for_gain = {
+                "Gain, some of which is ordinary, and some of which is 1231 gain, which will be characterized based on other 1231 transactions.": "The gain due to recapture is ordinary. Is there other gain?",
+                "Gain, all of which is ordinary.": f'<p>Correct! All of the gain is due to depreciation, so all of the gain is recharacterized as ordinary due to <a href="https://www.law.cornell.edu/uscode/text/26/1245" target="_new" rel="noreferrer">Section 1245</a> recapture.</p>',
+                'Gain, all of which is 1231 gain, which will be characterized based on all <a href="https://www.law.cornell.edu/uscode/text/26/1231" target="_new" rel="noreferrer">Section 1231</a> transactions for the year.': "Consider depreciation and recapture.",
+                "Gain, some of which is ordinary, and some of which is capital.": "The gain due to recapture is ordinary. Is there other gain?",
+                "Gain, all of which is capital.": "What about recapture?",
+            }
+
+            judgements_for_loss = {
+                "Loss, some of which is ordinary, and some of which is 1231 loss, which will be characterized based on other 1231 transactions.": "This sale generates gain, not loss. Double-check your depreciation calculations",
+                "Loss, all of which is ordinary.": "This sale generates gain, not loss. Double-check your depreciation calculations.",
+                "Loss, all of which is 1231 loss, which will be characterized based on all Section 1231 transactions for the year.": "This sale generates gain, not loss. Double-check your depreciation calculations.",
+                "Loss, some of which is ordinary, and some of which is capital.": "This sale generates gain, not loss. Double-check your depreciation calculations.",
+                "Loss, all of which is capital.": "This sale generates gain, not loss. Double-check your depreciation calculations.",
+            }
+
+        judgements = fm.merge(judgements_for_gain, judgements_for_loss)
+
+        formattedjudgements = fm.format_dict(judgements, "words")
+
+        cleananswers = possibleanswers
+
+    if question_lang == question_lang_ordinary_income:
+
+        possibleanswersbegin = [recapture, total_depreciation, gainloss, 0]
+
+        while True:
+            random_answer = total_depreciation + 500 * random.randint(1, 15)
+            if random_answer not in possibleanswersbegin:
+                break
+
+        possibleanswers = possibleanswersbegin + [random_answer]
+
+        if level_of_sale == "below basis with depreciation":
+
+            correct = 0
+
+            judgements = {
+                correct: f'<p>That is correct. Because the total depreciation, {fm.ac(total_depreciation)}, results in a basis, {fm.ac(basis_with_depreciation)}, that exceeds the sale price, the disposition results in loss. <a href="https://www.law.cornell.edu/uscode/text/26/1245" target="_new" rel="noreferrer">Section 1245</a> does not result in recapture when there is a loss on the sale. The loss is <a href="https://www.law.cornell.edu/uscode/text/26/1231" target="_new" rel="noreferrer">Section 1231</a> loss, and therefore its character is based on all 1231 transactions for the year.</p>',
+                gainloss: f'<p>This is the loss generated by the sale. But <a href="https://www.law.cornell.edu/uscode/text/26/1245" target="_new" rel="noreferrer">Section 1245</a> does not result in recapture when there is a loss on the sale. Additionally, the loss is Section 1231 loss, and therefore its character is based on all <a href="https://www.law.cornell.edu/uscode/text/26/1231" target="_new" rel="noreferrer">Section 1231</a> transactions for the year. We thus cannot know its character without additional information.</p>',
+                total_depreciation: 'This is the total depreciation for the asset. The sale of this asset results in a loss. Why would the total depreciation be recaptured under <a href="https://www.law.cornell.edu/uscode/text/26/1245" target="_new" rel="noreferrer">Section 1245</a>?',
+                random_answer: "This number was randomly generated.",
+            }
+
+        elif level_of_sale == "above original basis":
+
+            correct = recapture
+
+            judgements = {
+                recapture: f'<p>Correct! The total depreciation, {fm.ac(total_depreciation)}, results in a basis of {fm.ac(basis_with_depreciation)}. The portion of this gain that is due to recapture, {fm.ac(recapture)}, is ordinary income under <a href="https://www.law.cornell.edu/uscode/text/26/1245" target="_new" rel="noreferrer">Section 1245</a>. Because this is a <a href="https://www.law.cornell.edu/uscode/text/26/1231" target="_new" rel="noreferrer">Section 1231</a> asset, the remainder of the gain is 1231 gain, and its character will be determined by taking into account all 1231 gain and loss for the year.</p>',
+                0: f'<p>It is true that this is a <a href="https://www.law.cornell.edu/uscode/text/26/1231" target="_new" rel="noreferrer">Section 1231</a> asset, so to the extent that the regular 1231 rules apply, we cannot know whether this gain is ordinary or capital (because that will be determined based on all 1231 transactions for the year). But what about <a href="https://www.law.cornell.edu/uscode/text/26/1245" target="_new" rel="noreferrer">Section 1245</a>?</p>',
+                gainloss: "This is the full amount of gain. It is true that some of this is ordinary. But do we know that all of it is ordinary? What type of asset is this asset, given that it is a depreciable asset used in a trade or business and held for more than one year?",
+                random_answer: "This number was randomly generated.",
+            }
+
+        elif level_of_sale == "between original basis and basis with depreciation":
+
+            correct = recapture
+
+            judgements = {
+                recapture: f'<p>Correct! The total depreciation, {fm.ac(total_depreciation)}, results in a basis of {fm.ac(basis_with_depreciation)}. Because the sale price is between the original basis and the basis after depreciation, all {fm.ac(recapture)} of the gain is due to depreciation, so all is recaptured as ordinary income under <a href="https://www.law.cornell.edu/uscode/text/26/1245" target="_new" rel="noreferrer">Section 1245</a>.</p>',
+                0: f'<p>It is true that this is a <a href="https://www.law.cornell.edu/uscode/text/26/1231" target="_new" rel="noreferrer">Section 1231</a> asset, so to the extent that the regular 1231 rules apply, we cannot know whether this gain is ordinary or capital (because that will be determined based on all 1231 transactions for the year). But what about <a href="https://www.law.cornell.edu/uscode/text/26/1245" target="_new" rel="noreferrer">Section 1245</a>?</p>',
+                random_answer: "This number was randomly generated.",
+                total_depreciation: "This is the amount of depreciation. How do you calculate the basis of the property at sale, given this amount of depreciation?",
+            }
+
+        formattedjudgements = fm.format_dict(judgements)
+
+    possibleanswers = list(set(possibleanswers))
+    while len(possibleanswers) < 5:
+        possibleanswers, judgements = fm.random_answer_ones(possibleanswers, judgements)
+
+    cleananswers = fm.create_clean_answers(possibleanswers)
+    judgements_json = json.dumps(formattedjudgements)
+    return [problem, cleananswers, judgements_json, correct]
+
+
 
 def recapture():
     person1 = fm.create_person()
@@ -4496,6 +4777,7 @@ def recapture():
     total_depreciation = int(
         fm.depreciate_asset(asset, years_passed, initial_basis, sold=True)[0]
     )
+    
     basis_with_depreciation = initial_basis - total_depreciation
 
     possiblelevels = [
@@ -4836,6 +5118,170 @@ def asset_sale_all():
     cleananswers = fm.create_clean_answers(possibleanswers)
     return [problem, cleananswers, judgements_json, correct]
 
+def asset_sale_all_no_bonus():
+    person1 = fm.create_person()
+
+    number_of_assets = random.randint(1, 3)
+    number_of_stock = random.randint(1, 3)
+    selected_assets = []
+    assets_for_problem = []
+    ordinary = 0
+    total_1231 = 0
+    LTCL = 0
+    LTCG = 0
+    STCL = 0
+    STCG = 0
+    gross_income = 0
+
+    asset_purchase_lang = answer_lang = ""
+    losses_1231 = 0
+    gains_1231 = 0
+
+    for n in range(number_of_stock):
+        while True:
+            listasset = dp.create_asset_facts(type="stock")
+            if listasset.asset not in selected_assets:
+                selected_assets.append(listasset.asset)
+                assets_for_problem.append(listasset)
+                break
+
+    for n in range(number_of_assets):
+        while True:
+            listasset = dp.create_asset_facts(bonus=False)
+            if listasset.asset not in selected_assets:
+                selected_assets.append(listasset.asset)
+                assets_for_problem.append(listasset)
+                break
+
+    for item in assets_for_problem:
+        asset_purchase_lang += f"\n- {item.problem_facts} {item.period_lang}"
+
+        answer_lang += f" {item.answer_facts_all_netting}"
+        total_1231 = total_1231 + item.amount_1231
+
+        ordinary = ordinary + item.ordinary
+
+        gain_or_loss = item.sale_price - item.depreciated_basis
+
+        if gain_or_loss > 0:
+            gross_income += gain_or_loss
+
+        if item.amount_1231 < 0:
+            losses_1231 += item.amount_1231
+        else:
+            gains_1231 += item.amount_1231
+
+        if item.type_of_gain == "capital":
+            if item.long_or_short == "long":
+
+                if item.gain_or_loss_no_depreciation == "gain":
+                    LTCG = LTCG + gain_or_loss
+
+                elif item.gain_or_loss_no_depreciation == "loss":
+                    LTCL = LTCL - gain_or_loss
+
+            elif item.long_or_short == "short":
+
+                if item.gain_or_loss_no_depreciation == "gain":
+                    STCG = STCG + gain_or_loss
+
+                elif item.gain_or_loss_no_depreciation == "loss":
+                    STCL = STCL - gain_or_loss
+
+    if total_1231 <= 0:
+        compare_language = "do not exceed"
+        type_of_1231 = "ordinary"
+        ordinary = ordinary + total_1231
+
+    else:
+        type_of_1231 = "long-term capital"
+        compare_language = "exceed"
+        LTCG += gains_1231
+        LTCL += losses_1231
+
+    net_STCL = max(0, STCL - STCG)
+    net_LTCG = max(0, LTCG - LTCL)
+
+    total_losses = STCL + LTCL
+    total_gains = STCG + LTCG
+
+    net_CG = max(0, net_LTCG - net_STCL)
+
+    net_CL = max(0, total_losses - total_gains)
+
+    offsetting = max(0, min(net_CL, ordinary, 3000))
+
+    carryforward = max(0, net_CL - offsetting)
+
+    if ordinary < 0:
+        offsetting_language = f"There is no additional ordinary gain or income; rather, there is ordinary loss of {fm.ac(-ordinary)}."
+
+    else:
+        offsetting_language = f"Before using any offsetting capital losses, there is {fm.ac(ordinary)} of ordinary income. Capital losses can be used to offset {fm.ac(offsetting)} of that, which reduces the capital losses accordingly."
+
+    # if ordinary_total != ordinary_not_STCG:
+    #     print("stcg taxable")
+    #     stcg_lang = "Additionally, short-term capital gain that is not offset by capital losses is taxed at ordinary rates."
+    # else:
+    #     stcg_lang = ''
+
+    if gains_1231 != 0 or losses_1231 != 0:
+        answer_lang_1231 = f"<br><br>The total amount of 1231 gains is {fm.ac(gains_1231)}. The total amount of 1231 losses is {fm.ac(losses_1231)}. Because the 1231 gains {compare_language} the 1231 losses, all 1231 gains and losses are {type_of_1231} gains and losses under Section 1231(a). Thus there is an additional {fm.ac(gains_1231)} of long-term capital gain and {fm.ac(losses_1231)} of long-term capital loss."
+    else:
+        answer_lang_1231 = "<br><br>There are no 1231 gains or losses."
+
+    answer_lang_capital = f"Therefore, netting all capital gains and losses, there is {fm.ac(net_LTCG)} of net long-term capital gain and {fm.ac(net_STCL)} of net short-term capital loss, resulting in {fm.ac(net_CG)} of net capital gain."
+
+    summary_answer_lang = f"{answer_lang_1231} {answer_lang_capital}"
+
+    problem_lang = f"In {fm.current_year}, {person1.name} sells the following assets. {person1.name} holds all stock for investment, uses each of the other assets in their business, and put each asset used for business into use the same day it was purchased. {person1.name} sells no other assets in {fm.current_year} and elects out of Section 168(k).\n\n{asset_purchase_lang}"
+
+    # question=random.choice(['capgain','ordinary','losscarry'])
+    question = random.choice(["capgain", "losscarry"])
+
+    if question == "capgain":
+        question_lang = f"\n\nHow much net capital gain, taxed at a favorable rate, does {person1.name} have in {fm.current_year} due to these transactions?"
+        summary_answer_lang_addl = ""
+        correct = net_CG
+
+    # elif question == 'ordinary':
+    #     question_lang= f"<br><br>How much net ordinary gain or loss does {person1.name} have in {fm.current_year} due to these transactions?"
+    #     summary_answer_lang_addl = f"Before using any offsetting capital losses, there is {fm.ac(ordinary)} of income that is not capital gain. There are {fm.ac(offsetting)} of capital losses available to offset ordinary income. Therefore, netting all ordinary gains and losses, and using the offsetting capital losses available, there is {fm.ac(ordinary_total)} of income taxed at ordinary rates.<br>"
+    #     correct = ordinary_total
+
+    elif question == "losscarry":
+        question_lang = f"\n\nHow much capital loss does {person1.name} carry into {fm.current_year+1}?"
+
+        if net_CL == 0:
+            summary_answer_lang_addl = "There is no excess of capital losses over capital gains, so no losses are carried into the next year."
+        else:
+            summary_answer_lang_addl = f"There is an excess of {fm.ac(net_CL)} of capital losses over gains. {offsetting_language} Therefore {fm.ac(carryforward)} of losses are carried into the next year.<br>"
+        correct = carryforward
+
+    problem = problem_lang + question_lang
+
+    answer_lang = (
+        f"Correct!\n\n{answer_lang} {summary_answer_lang}\n\n{summary_answer_lang_addl}"
+    )
+
+    judgements = {correct: answer_lang}
+
+    possibleanswers = [correct, 0]
+
+    if correct == 0:
+        possibleanswers.append(1000 * random.randint(2, 10))
+
+    [possibleanswers, judgements] = fm.random_answer_pot(possibleanswers, judgements, 1)
+    [possibleanswers, judgements] = fm.random_answer_pot(possibleanswers, judgements, 1)
+    [possibleanswers, judgements] = fm.random_answer_pot(possibleanswers, judgements, 0)
+    [possibleanswers, judgements] = fm.random_answer_pot(possibleanswers, judgements, 0)
+    [possibleanswers, judgements] = fm.random_answer_pot(possibleanswers, judgements, 3)
+
+    formattedjudgements = fm.format_dict(judgements)
+    judgements_json = json.dumps(formattedjudgements)
+    cleananswers = fm.create_clean_answers(possibleanswers)
+    return [problem, cleananswers, judgements_json, correct]
+
 def section_24_credit():
     [taxpayer, spouse] = fm.create_group()
 
@@ -5038,12 +5484,15 @@ functions_dict = {
     "like-kind exchanges": like_kind,
     "transactions with liabilities": liabilities,
     "installment sales": installment_sales,
-    "depreciation": depreciation_question,
+    "depreciation": depreciation_all,
+    "depreciation (no bonus depreciation)": depreciation_question,
     "capital gains and losses": cap_gain_netting,
     "section 1231 netting": section_1231_netting,
     "recapture": recapture,
+    "recapture (no bonus depreciation)": recapture_no_bonus,
     "section 24 credit": section_24_credit,
     "capital gain + section 1231 + recapture": asset_sale_all,
+    "capital gain + section 1231 + recapture (no bonus depreciation)": asset_sale_all_no_bonus,
 }
 
 functions_list = ["a random type of problem"] + list(functions_dict.keys())
@@ -5077,3 +5526,4 @@ def rates_facts(type_of_taxpayer, taxable_income):
         response = f"The tax owed is {fm.ac(tax_owed_answer)}.\nThe average tax rate is {fm.as_percent(average_rate_answer)}.\nThe marginal tax rate is {fm.as_percent(marginal_rate_answer)}."
 
     return response
+
