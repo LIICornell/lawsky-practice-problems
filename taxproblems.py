@@ -890,7 +890,7 @@ def create_quiz(n_clicks, current_type, types_problem, number_questions):
         ]
 
     else:
-        if number_questions is None or number_questions == "":
+        if number_questions is None or number_questions == "" or number_questions <= 0:
             number_questions = 5
         else:
             number_questions = min(int(number_questions), MAX_QUIZ_QUESTIONS)

@@ -310,9 +310,8 @@ def parseRegs(sectionsToUse, outputTitle):
         file.close()
         return "", []  
 
-    reg_sections_list = df['Regulation'].tolist()
+    reg_sections_list = [s.strip() for s in df['Regulation'].tolist()]
     subsections_list = df['SubsectionList'].tolist()
-
     lookupdict = dict(zip(reg_sections_list, subsections_list))
 
     with open(correct_reg_dict, 'r', encoding='utf8') as fp:
@@ -324,8 +323,8 @@ def parseRegs(sectionsToUse, outputTitle):
 
     messed_up_list = ['1.1041-1T', '1.263(a)-3', '1.263A-1']
 
+    failed_items =[]
     for item in reg_sections_list:
-        item = item.strip()
         try:
             textstring += bookmark_mark(item)
             selected_subsections = lookupdict[item]
@@ -347,8 +346,11 @@ def parseRegs(sectionsToUse, outputTitle):
                         textstring += (str(subsection_to_add))
         except:
             error_string += f"Section {item}, "
-            reg_sections_list.remove(item)
+            failed_items.append(item)
 
+
+    reg_sections_list = [x for x in reg_sections_list if x not in failed_items]
+    
     def uppercase_match(match):
         # Return the original <h1> tags but with the inner text converted to uppercase
         return '<h4>' + match.group(1).upper() + '</h4>'

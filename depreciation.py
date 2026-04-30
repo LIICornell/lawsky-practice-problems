@@ -125,7 +125,7 @@ class AssetFacts:
         self.period_lang = period_lang
 
 
-def create_asset_facts(type="asset", year=fm.current_year):
+def create_asset_facts(type="asset", year=fm.current_year,bonus=True,problem_type="depreciation"):
 
     corp_name = fm.pick_entity_name()
     stock = Asset(f"shares of stock issued by {corp_name}", 50, 50, False)
@@ -180,14 +180,18 @@ def create_asset_facts(type="asset", year=fm.current_year):
         depreciation = years_depreciation = 0
 
     else:
-        years_depreciation = year - date_purchased.year
+       if not bonus:
+            years_depreciation = year - date_purchased.year
 
-        [total_depreciation, annual_depreciation] = fm.depreciate_asset(
+            [total_depreciation, annual_depreciation] = fm.depreciate_asset(
             asset, years_depreciation, purchase_price, True
         )
 
-        depreciation = int(total_depreciation)
+            depreciation = int(total_depreciation)
 
+       else:
+            depreciation = purchase_price
+    
     depreciated_basis = purchase_price - depreciation
 
     truegainloss = sale_price - depreciated_basis
@@ -229,7 +233,12 @@ def create_asset_facts(type="asset", year=fm.current_year):
         else:
             ordinary_lang = f"All of this is recapture and thus ordinary income."
 
-    problem_facts = f"On {fm.full_date(date_sold)}, they sell {preset}{asset.name} for {fm.ac(sale_price)}. They bought the {asset.name} for {fm.ac(purchase_price)} on {fm.full_date(date_purchased)}."
+    if problem_type == "depreciation":        
+        problem_facts = f"On {fm.full_date(date_sold)}, they sell {preset}{asset.name} for {fm.ac(sale_price)}. They bought the {asset.name} for {fm.ac(purchase_price)} on {fm.full_date(date_purchased)}."
+
+        # these facts are for the 1231 problem
+    else:
+        problem_facts = f"On {fm.full_date(date_sold)}, they sell {preset}{asset.name} for {fm.ac(sale_price)}, when it has a basis of {fm.ac(purchase_price)}. They bought the {asset.name} on {fm.full_date(date_purchased)}."
 
     answer_facts_cap_gain = f"The sale of the {asset.name} generates {fm.ac(gain_or_loss_amount)} of {long_or_short}-term capital {gain_or_loss}. "
 

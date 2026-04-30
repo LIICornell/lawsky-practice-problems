@@ -2242,7 +2242,8 @@ def part_donation(
     transferor,
     transferee,
 ):
-
+ 
+    
     transferor_sale_basis = int(
         round(transferor_basis * (transferor_sale_price / asset_value))
     )
@@ -2291,8 +2292,14 @@ def basis_problems(type_problem="random"):
 
     numbers_list = [asset_value]
 
+
+    if type_problem == "part donation":
+        upper_bound = 95
+    else:
+        upper_bound = 115
+
     while True:
-        transferor_basis = fm.generate_random_item(asset_value, 70, 110)
+        transferor_basis = fm.generate_random_item(asset_value, 60, upper_bound)
         if abs(transferor_basis - asset_value) > 1000:
             numbers_list.append(transferor_basis)
             break
@@ -2579,11 +2586,14 @@ def basis_problems(type_problem="random"):
 
     problem = problem_facts + question_lang
 
-    while len(possibleanswers) < 5:
+    while len(possibleanswers) < 7:
+        power_of_ten = random.randrange(0, 4)
         (possibleanswers, judgements) = fm.random_answer_pot(
-            possibleanswers, judgements, 3, 40, 140
+            possibleanswers, judgements, power_of_ten, 40, 140
         )
 
+
+        
     formattedjudgements = fm.format_dict(judgements)
     judgements_json = json.dumps(formattedjudgements)
     cleananswers = fm.create_clean_answers(possibleanswers)
@@ -4402,7 +4412,7 @@ def section_1231_netting():
 
     for n in range(number_of_assets):
         while True:
-            listasset = dp.create_asset_facts()
+            listasset = dp.create_asset_facts(problem_type="section_1231")
             if listasset.asset not in selected_assets:
                 selected_assets.append(listasset.asset)
                 assets_for_problem.append(listasset)
@@ -4457,7 +4467,7 @@ def section_1231_netting():
     else:
         total_OI = net_OI
 
-    problem_lang = f"In {fm.current_year}, {person1.name} sells the following assets, each of which {person1.nom} {usepronoun} in {person1.poss} business. {person1.name} sells no other assets in {fm.current_year} that {person1.nom} used in {person1.poss} business. All assets were put into use on the day purchased. Assume that all the assets are depreciable, but that the basis at sale equals purchase price--that is, there has been no depreciation. This is a wildly unrealistic, indeed, incoherent assumption, but it will help you focus on the specific issue of netting 1231 gains and losses for now.\n\n{asset_purchase_lang}"
+    problem_lang = f"In {fm.current_year}, {person1.name} sells the following assets, each of which {person1.nom} {usepronoun} in {person1.poss} business. {person1.name} sells no other assets in {fm.current_year} that {person1.nom} used in {person1.poss} business. All assets are depreciable and were put into use on the day purchased. Assume that none of the gain in the transactions described is due to depreciation (this assumption is highly unrealistic, but it will help you focus on 1231 netting for now).\n\n{asset_purchase_lang}"
 
     question_lang = f"\n\nHow much net ordinary gain or loss does {person1.name} have in {fm.current_year} due to these transactions?"
 
@@ -4472,49 +4482,17 @@ def section_1231_netting():
 
     possibleanswers = list(set(possibleanswers))
 
-    while len(possibleanswers) < 5:
-        while True:
-            if net_1231 != 0:
-                random_answer = fm.generate_random_item_hund(net_1231, 80, 120)
-            else:
-                random_answer = 500 * random.randint(10, 60)
-            if random_answer not in possibleanswers:
-                possibleanswers.append(random_answer)
-                break
-
-    if net_1231 < 0:
-
-        if net_OI != 0:
-
-            judgements = {
-                correct: f"{correct_lang} Additionally, there is a net of {fm.ac(net_OI)} from assets that were held for less than one year and thus are not Section 1231 assets. This is a total of {fm.ac(total_OI)} treated as ordinary income. More specifically: {answer_lang}",
-                random_answer: "This number was randomly generated.",
-            }
-
-        else:
-
-            judgements = {
-                correct: f"{correct_lang}. There is no other source of ordinary income or loss from the disposition of these assets. More specifically: {answer_lang}",
-                random_answer: "This number was randomly generated.",
-            }
+    if net_OI != 0:
+        judgements = {
+        correct: f"{correct_lang} Additionally, there is a net of {fm.ac(net_OI)} from assets that were held for less than one year and thus are not Section 1231 assets. This is a total of {fm.ac(total_OI)} treated as ordinary. More specifically: {answer_lang}",
+    }
 
     else:
+        judgements = {
+        correct: f"{correct_lang} There is no other source of ordinary income or loss from the disposition of these assets. More specifically: {answer_lang}",
+    }
 
-        if net_OI != 0:
-
-            judgements = {
-                correct: f"{correct_lang} Additionally, there is a net of {fm.ac(net_OI)} from assets that were held for less than one year and thus are not Section 1231 assets. This is a total of {fm.ac(total_OI)} treated as ordinary. More specifically: {answer_lang}",
-                random_answer: "This number was randomly generated.",
-            }
-
-        else:
-
-            judgements = {
-                correct: f"{correct_lang} There is no other source of ordinary income or loss from the disposition of these assets. More specifically: {answer_lang}",
-                random_answer: "This number was randomly generated.",
-            }
-
-    if net_OI != capital_all_gains_losses:
+    if capital_all_gains_losses != total_OI:
 
         judgements[capital_all_gains_losses] = (
             '<p>You treated all gains and losses as capital. What about <a href="https://www.law.cornell.edu/uscode/text/26/1231" target="_new" rel="noreferrer">Section 1231(a)(2)</a>?</p>'
@@ -4526,6 +4504,19 @@ def section_1231_netting():
             '<p>You treated all gains and losses as ordinary. What about <a href="https://www.law.cornell.edu/uscode/text/26/1231" target="_new" rel="noreferrer">Section 1231(a)(1)</a>?</p>'
         )
 
+    
+    while len(possibleanswers) < 5:
+        while True:
+            if net_1231 != 0:
+                random_answer = fm.generate_random_item_hund(net_1231, 80, 120)
+            else:
+                random_answer = 500 * random.randint(10, 60)
+            if random_answer not in possibleanswers:
+                possibleanswers.append(random_answer)
+                judgements[random_answer] = "This answer was randomly generated."
+                break
+
+        
     formattedjudgements = fm.format_dict(judgements)
     judgements_json = json.dumps(formattedjudgements)
     cleananswers = fm.create_clean_answers(possibleanswers)
@@ -4925,7 +4916,7 @@ def recapture():
             correct = initial_basis
 
             judgements = {
-                initial_basis:f'<p>Correct! The {asset.name} is qualified property for purposes of the special allowance under Section 168(k) because it has a recovery period of 20 years or less. Section 168(k)(2)(A)(i)(I). Therefore, because of the Section 168(k) special allowance for 100% depreciation, the basis on sale is {fm.ac(0)}. The total gain is therefore {fm.ac(gainloss)}. The portion of this gain that is due to recapture, {fm.ac(initial_basis)}, is ordinary income under <a href="https://www.law.cornell.edu/uscode/text/26/1245" target="_new" rel="noreferrer">Section 1245</a>. Because this is a <a href="https://www.law.cornell.edu/uscode/text/26/1231" target="_new" rel="noreferrer">Section 1231</a> asset, the remainder of the gain is 1231 gain, and its character will be determined by taking into account all 1231 gain and loss for the year.</p>',
+                initial_basis:f'<p>Correct! The {asset.name} is qualified property for purposes of the special allowance under Section 168(k) because it has a recovery period of 20 years or less. Section 168(k)(2)(A)(i)(I). Therefore, because of the Section 168(k) special allowance for 100% depreciation, the basis on sale is {fm.ac(0)}. The total gain is therefore {fm.ac(sale_price)}. The portion of this gain that is due to recapture, {fm.ac(initial_basis)}, is ordinary income under <a href="https://www.law.cornell.edu/uscode/text/26/1245" target="_new" rel="noreferrer">Section 1245</a>. Because this is a <a href="https://www.law.cornell.edu/uscode/text/26/1231" target="_new" rel="noreferrer">Section 1231</a> asset, the remainder of the gain is 1231 gain, and its character will be determined by taking into account all 1231 gain and loss for the year.</p>',
                 recapture: 'This would be correct if not for Section 168(k).',
                 0: f'<p>It is true that this is a <a href="https://www.law.cornell.edu/uscode/text/26/1231" target="_new" rel="noreferrer">Section 1231</a> asset, so to the extent that the regular 1231 rules apply, we cannot know whether this gain is ordinary or capital (because that will be determined based on all 1231 transactions for the year). But what about <a href="https://www.law.cornell.edu/uscode/text/26/1245" target="_new" rel="noreferrer">Section 1245</a>?</p>',
                 gainloss: "This is the full amount of gain. It is true that some of this is ordinary. But do we know that all of it is ordinary? What type of asset is this asset, given that it is a depreciable asset used in a trade or business and held for more than one year?",
@@ -5484,7 +5475,7 @@ functions_dict = {
     "like-kind exchanges": like_kind,
     "transactions with liabilities": liabilities,
     "installment sales": installment_sales,
-    "depreciation": depreciation_all,
+    "cost recovery": depreciation_all,
     "depreciation (no bonus depreciation)": depreciation_question,
     "capital gains and losses": cap_gain_netting,
     "section 1231 netting": section_1231_netting,
@@ -5495,12 +5486,43 @@ functions_dict = {
     "capital gain + section 1231 + recapture (no bonus depreciation)": asset_sale_all_no_bonus,
 }
 
-functions_list = ["a random type of problem"] + list(functions_dict.keys())
+class_functions_dict = {
+    "rates": rates_problems,
+    "gross-ups": gross_up,
+    "time value of money": tvm,
+    "unrestricted property as compensation": unrestricted_property,
+    "restricted property as compensation": restricted_property,
+    "options as compensation": options_as_comp,
+    "different ways of satisfying a debt": satisfy_debt,
+    "bonds, shifting interest rates, and COD": bonds_COD,
+    "gain from sale of principal residence": principal_res,
+    "COD exclusion": exclusion_COD,
+    "qualified employee discount": qual_empl_disc,
+    "charitable donation deduction": charitable_donation,
+    "home mortgage interest deduction": qri,
+    "taxable property exchange": property_exchange,
+    "basis": basis_problems,
+    "like-kind exchanges": like_kind,
+    "transactions with liabilities": liabilities,
+    "installment sales": installment_sales,
+    "cost recovery": depreciation_all,
+    "capital gains and losses": cap_gain_netting,
+    "section 1231 netting": section_1231_netting,
+    "recapture": recapture,
+    "section 24 credit": section_24_credit,
+    "capital gain + section 1231 + recapture": asset_sale_all,
+}
+
+lawsky_lang = "a random topic (Lawsky Fed Tax)"
+
+functions_list = ["a random type of problem"] + list(functions_dict.keys()) + [lawsky_lang]
 
 
 def function_picker(fn):
     if fn == "a random type of problem":
         fn_pick = random.choice(list(functions_dict.values()))
+    elif fn == lawsky_lang:
+        fn_pick = random.choice(list(class_functions_dict.values()))
     else:
         fn_pick = functions_dict[fn]
 
