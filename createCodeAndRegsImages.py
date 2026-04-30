@@ -114,9 +114,12 @@ def process_code_excel(sectionsToUse):
     if code_df.empty:
         return pd.DataFrame(columns=['Code', 'SubsectionList', 'NumberToSort'])
 
+    code_df['Code'] = code_df['Code'].astype(str).str.strip().str.upper() 
+
     # remove spaces from the subsections list
     code_df['SubsectionClean'] = code_df['Subsection'].apply(
         lambda x: fix_subsection(x))
+
     code_df['SubsectionList'] = code_df['SubsectionClean'].apply(
         lambda x: create_list_from_string(x))
 
@@ -127,6 +130,7 @@ def process_code_excel(sectionsToUse):
     code_df['NumberToSort'] = code_df['Code'].apply(
         lambda x: find_the_number(x))
     code_df = code_df.sort_values(by=['NumberToSort'])
+   
 
     return code_df
 
@@ -166,7 +170,10 @@ def process_regs_excel(sectionsToUse):
     if regs_df.empty:
         return pd.DataFrame(columns=['Regulation', 'SubsectionList', 'Section', 'Specific', 'NumberToSort'])
 
-    regs_df['Regulation'] = regs_df['Regulation'].astype(str)
+    regs_df['Regulation'] = regs_df['Regulation'].astype(str).str.strip()
+    regs_df['Regulation'] = regs_df['Regulation'].apply(
+    lambda x: re.sub(r'(\d)([a-zA-Z])$', lambda m: m.group(1) + m.group(2).upper(), x.strip())
+)
 
     # get the sections and specific reg from the overall regulation
     regs_df['Intro'] = regs_df['Regulation'].apply(
@@ -191,12 +198,11 @@ def process_regs_excel(sectionsToUse):
 
     return regs_df
 
-def parse26(sectionsToUse, outputTitle):
-
+def parse26(sectionsToUse, outputTitle,df=None):
+    if df is None:
+        df = process_code_excel(sectionsToUse)
     introtext = '<root>'
     endingtext = '</root>'
-
-    df = process_code_excel(sectionsToUse)
 
     if df.empty:
         file = open(outputTitle, 'w', encoding='utf-8')
@@ -218,7 +224,7 @@ def parse26(sectionsToUse, outputTitle):
     textstring = ""
     error_string = ""
     # include the relevant sections
-
+    failed_items = []
     for item in code_sections_list:
         try:
             textstring += bookmark_mark(item)
@@ -234,7 +240,9 @@ def parse26(sectionsToUse, outputTitle):
 
         except:
             error_string += f"Section {item}, "
-            code_sections_list.remove(item)
+            failed_items.append(item)
+    
+    code_sections_list = [x for x in code_sections_list if x not in failed_items]
 
     file = open(outputTitle, 'w', encoding='utf-8')
     file.write(introtext)
@@ -277,8 +285,9 @@ def convert_code_to_html(inputtitle, outputtitle, timenum):
         file.write(content)
 
 
-def parseRegs(sectionsToUse, outputTitle):
-
+def parseRegs(sectionsToUse, outputTitle,df=None):
+    if df is None:
+        df = process_regs_excel(sectionsToUse)
     # create the intro and endtext that allows the css file
 
     if type_run == 'home':
@@ -300,9 +309,6 @@ def parseRegs(sectionsToUse, outputTitle):
 
     endtext = """  </body>
     </html>"""
-
-    # create the file
-    df = process_regs_excel(sectionsToUse)
 
     if df.empty:
         file = open(outputTitle, 'w', encoding='utf-8')
@@ -367,13 +373,13 @@ def parseRegs(sectionsToUse, outputTitle):
     return error_string[:-2], reg_sections_list
 
 
-def createSelectedCodeRegsHTML(sectionsToUse, timenum):
+def createSelectedCodeRegsHTML(sectionsToUse, timenum, code_df=None,regs_df=None):
     code_error_list, code_list = parse26(
-        sectionsToUse, f'saved_code/codefillertitle.{timenum}.xml')
+        sectionsToUse, f'saved_code/codefillertitle.{timenum}.xml',df=code_df)
     convert_code_to_html(
         f'saved_code/codefillertitle.{timenum}.xml', f'saved_code/codefillertitle.{timenum}.html', f'{timenum}')
     reg_error_list, reg_sections_list = parseRegs(
-        sectionsToUse, f'saved_code/regfillertitle.{timenum}.html')
+        sectionsToUse, f'saved_code/regfillertitle.{timenum}.html',df=regs_df)
     if len(code_error_list) > 2:
         if len(reg_error_list) > 2:
             all_errors = f"{code_error_list}, {reg_error_list}"
@@ -386,13 +392,10 @@ def createSelectedCodeRegsHTML(sectionsToUse, timenum):
 
 
 def convert_to_pdf(input_html, output_pdf):
-
     with open(input_html, 'r', encoding='utf-8') as html_file:
-        source_html = html_file.read()
-    with open(output_pdf, "w+b") as result_file:
-        pisa_status = pisa.CreatePDF(source_html, dest=result_file)
-        return not pisa_status.err
-    #pdfkit.from_file(input_html, output_pdf,options=options)
+        with open(output_pdf, "w+b") as result_file:
+            pisa_status = pisa.CreatePDF(html_file, dest=result_file)
+            return not pisa_status.err
 
 
 def add_page_numbers(input_path, output_path, pagenumbers):
@@ -403,20 +406,20 @@ def add_page_numbers(input_path, output_path, pagenumbers):
 
     num_pages = len(pdf)
 
-    if num_pages > max_length:
+    # if num_pages > max_length:
 
-        pdf.save(output_path)
-        pdf.close()
+    #    pdf.save(output_path)
+    #    pdf.close()
 
-    else:
-        font_size = 10  # Replace with your desired font size
-        font_name = "TiRo"
+    # else:
+    font_size = 10  # Replace with your desired font size
+    font_name = "TiRo"
 
         # keep a running list for the footers
-        bookmark_list = [" "]
+    bookmark_list = [" "]
 
         # Iterate over each page
-        for i, page in enumerate(pdf):
+    for i, page in enumerate(pdf):
             # Get the page number
 
             if i >= 2:
@@ -484,8 +487,8 @@ def add_page_numbers(input_path, output_path, pagenumbers):
 
         # Save the modified PDF to the output path
 
-        pdf.save(output_path)
-        pdf.close()
+    pdf.save(output_path)
+    pdf.close()
 
     return num_pages
 
@@ -553,13 +556,14 @@ def create_code_book(bookname, sectionsToUse, timenum, orderlist, pagenumbers):
     import time
     start = time.time()
 
+    code_df = process_code_excel(sectionsToUse)  # computed once here
+    regs_df = process_regs_excel(sectionsToUse)
+
     # create the HTML files with just the code and regulation sections that you want
     introduction_string = ci.intro_info
     path_short = 'CodeRegs/FilesForBook'
     
     # Check if sheets are empty before processing
-    code_df = process_code_excel(sectionsToUse)
-    regs_df = process_regs_excel(sectionsToUse)
 
     MAX_ROWS = 250
     total_rows = len(code_df) + len(regs_df)
@@ -572,7 +576,7 @@ def create_code_book(bookname, sectionsToUse, timenum, orderlist, pagenumbers):
     
     start = time.time()
     all_errors, reg_section_list, code_sections_list = createSelectedCodeRegsHTML(
-        sectionsToUse, timenum)
+        sectionsToUse, timenum,code_df=code_df,regs_df=regs_df)
     print(f"create Selected Code Regs HTML: {time.time() - start:.2f}s")
     
     start = time.time()
@@ -697,10 +701,10 @@ def create_code_book(bookname, sectionsToUse, timenum, orderlist, pagenumbers):
     
     start = time.time()
 
-    if num_pages > max_length:
-        footer_error = f"Because the number of pages in your PDF was greater than {max_length}, the program was unable to add footers or page numbers."
-    else:
-        footer_error = ""
+    #if num_pages > max_length:
+    #    footer_error = f"Because the number of pages in your PDF was greater than {max_length}, the program was unable to add footers or page numbers."
+    # else:
+    footer_error = ""
 
     return all_errors, footer_error
 

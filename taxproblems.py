@@ -127,7 +127,7 @@ app.layout = html.Div(
     [
         dcc.Location(id="url", refresh=False),
         dcc.Interval(
-            id="interval-component", interval=1000, n_intervals=0, disabled=True
+            id="interval-component", interval=3000, n_intervals=0, disabled=True
         ),
         dcc.Store(id="processing-flag",data=False),
         dcc.Store(id="task-input-store"),
@@ -350,11 +350,7 @@ code_and_regs_layout = html.Div(
         dcc.Markdown(faq.be_patient),
         html.Br(),
         html.Div([
-    dcc.Loading(
-        id="loading-book",
-        type="default",  # or "circle", "dot", "cube"
-        children=dcc.Markdown(id="upload-confirm-all", dangerously_allow_html=True)
-    )
+   dcc.Markdown(id="upload-confirm-all", dangerously_allow_html=True)
 ]),
         html.Br(),
         html.Br(),
@@ -1074,6 +1070,7 @@ def serve_file_in_dir(path):
         Output("after-book-options", "style"),
         Output("interval-component", "disabled", allow_duplicate=True),
         Output("processing-flag", "data", allow_duplicate=True),
+        Output("task-input-store", "data"),
     ],
     [Input("upload-data-all", "contents")],
     [
@@ -1089,7 +1086,6 @@ def create_code_regs(contents, nclicks, docsdropdown, pagenumbers):
         fm.remove_old_files("CodeRegs/FilesForBook")
         
         full_file = parse_contents_code_book(contents)
-        full_file_b64 = base64.b64encode(full_file).decode("utf-8")
         now = datetime.timestamp(datetime.now())
         book_title = f"SelectedSections.{now}"
         
@@ -1097,31 +1093,96 @@ def create_code_regs(contents, nclicks, docsdropdown, pagenumbers):
             f.write(f"\n{now}")
         
         pagenumber = 1 in pagenumbers
-        
-        # Direct call instead of Celery task
-        excel_file = io.BytesIO(base64.b64decode(full_file_b64))
-        all_errors, footer_error = cc.create_code_book(
-            book_title, excel_file, now, docsdropdown, pagenumber
-        )
 
-        if all_errors.startswith("ROW_LIMIT:"):
-            return [f"Your request contains too many sections. For performance reasons, please limit requests to 250 total sections (Code and regulations combined) at a time.",  {"display": "block"}, True, False]
-        
+        # save excel file to disk
+        excel_path = f"saved_code/upload.{now}.xlsx"
+        with open(excel_path, "wb") as f:
+            f.write(full_file)
+
+        # write job file for scheduled task to pick up
+        job_path = f"saved_code/job.{now}.json"
+        with open(job_path, "w") as f:
+            json.dump({
+                "book_title": book_title,
+                "excel_path": excel_path,
+                "now": now,
+                "docsdropdown": docsdropdown,
+                "pagenumber": pagenumber
+            }, f)
+
+        # write initial status file
+        status_path = f"saved_code/status.{now}.json"
+        with open(status_path, "w") as f:
+            json.dump({"status": "processing"}, f)
+
+        return [
+            random.choice(fm.waiting_list),
+            {"display": "none"},
+            False,
+            True,
+            {"now": now}]
+    
+
+    return ["", {"display": "none"}, True, False, None]
+
+@app.callback(
+    [
+        Output("upload-confirm-all", "children", allow_duplicate=True),
+        Output("after-book-options", "style", allow_duplicate=True),
+        Output("interval-component", "disabled", allow_duplicate=True),
+        Output("processing-flag", "data", allow_duplicate=True),
+    ],
+    [Input("interval-component", "n_intervals")],
+    [State("task-input-store", "data")],
+    prevent_initial_call=True,
+)
+def check_processing_status(n_intervals, task_data):
+    if not task_data:
+        raise PreventUpdate
+    
+    now = task_data.get("now")
+    if not now:
+        raise PreventUpdate
+
+    status_path = f"saved_code/status.{now}.json"
+    if not os.path.exists(status_path):
+        raise PreventUpdate
+
+    with open(status_path, "r") as f:
+        status = json.load(f)
+
+    if status["status"] == "processing":
+    
+        return [
+            random.choice(fm.waiting_list),
+            {"display": "none"},
+            False,
+            True
+    ]
+
+    elif status["status"] == "error":
+        return [
+            f"An error occurred: {status['message']}",
+            {"display": "block"},
+            True,  # disable interval
+            False
+        ]
+
+    else:  # done
+        all_errors = status["all_errors"]
+        footer_error = status["footer_error"]
+        book_title = status["book_title"]
         download_link = f"/download/saved_code/{book_title}.pdf"
-        
-        if len(all_errors) > 3:
-            reg_error = f"I could not find the following sections: {all_errors}."
-        else:
-            reg_error = ""
-        
-        if len(all_errors) > 3 or len(footer_error) > 1:
+
+        if all_errors and all_errors.startswith("ROW_LIMIT:"):
+            message = "Your request contains too many sections. Please limit to 250 total sections at a time."
+        elif len(all_errors) > 3 or len(footer_error) > 1:
+            reg_error = f"I could not find the following sections: {all_errors}." if len(all_errors) > 3 else ""
             message = f"Your file was mostly processed successfully. However, I encountered the following issues. {reg_error} {footer_error}\n\n[Download your Selected Sections book]({download_link})"
         else:
             message = f"Your file was processed successfully.\n\n[Download your Selected Sections book]({download_link})"
-        
-        return [message, {"display": "block"}, True, False]  # Stop interval, clear processing flag
-    
-    return ["", {"display": "none"}, True, False]
+
+        return [message, {"display": "block"}, True, False]
 
 @app.callback(
     [
